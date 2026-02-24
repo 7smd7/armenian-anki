@@ -55,9 +55,10 @@ export const metadata: Metadata = {
         locale: "en_US",
         images: [
             {
-                url: "/og-image.png",
+                url: "/og-image.jpg",
                 width: 1200,
                 height: 630,
+                type: "image/jpeg",
                 alt: "Hayeren — Learn Armenian Vocabulary",
             },
         ],
@@ -67,7 +68,14 @@ export const metadata: Metadata = {
         title: "Hayeren — Learn Armenian Vocabulary",
         description:
             "Spaced repetition flashcard app for Armenian vocabulary. Try free, no sign-in needed.",
-        images: ["/og-image.png"],
+        images: [
+            {
+                url: "/og-image.jpg",
+                width: 1200,
+                height: 630,
+                alt: "Hayeren — Learn Armenian Vocabulary",
+            },
+        ],
     },
 };
 
