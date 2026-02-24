@@ -1,0 +1,213 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================
+// USERS & AUTHENTICATION
+// ============================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String?   @unique
+  emailVerified DateTime?
+  name          String?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  accounts      Account[]
+  sessions      Session[]
+  decks         Deck[]
+  cardStates    UserCardState[]
+  reviewLogs    ReviewLog[]
+
+  @@index([email])
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ============================================
+// DECKS & CARDS
+// ============================================
+
+model Deck {
+  id        String   @id @default(cuid())
+  ownerId   String
+  title     String
+  slug      String // For URL-safe deck reference
+  description String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Source tracking for CSV import cycle detection
+  sourceFingerprint String? // Hash of imported CSV file for update detection
+
+  // Relations
+  owner     User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  cards     Card[]
+  imports   ImportJob[]
+
+  @@unique([ownerId, slug])
+  @@index([ownerId])
+}
+
+model Card {
+  id        String   @id @default(cuid())
+  deckId    String
+  externalRowId String? // For tracking row identity across CSV reimports
+  
+  // Card content from CSV columns
+  armenianScript String
+  translit       String
+  englishMeaning String
+  exampleSentence String?
+  exampleTranslation String?
+  grammar        String?
+  cheatPhrase    String?
+  topic          String? // Topic/Tag
+
+  // Metadata
+  difficultyBase Int? // Original difficulty from CSV (for reference only, not user-specific)
+  isActive       Boolean @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  deck       Deck             @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  userStates UserCardState[]
+  reviews    ReviewLog[]
+
+  @@index([deckId])
+  @@index([topic])
+  @@unique([deckId, externalRowId]) // Ensure stable identity per deck
+}
+
+// ============================================
+// USER PROGRESS & SCHEDULING
+// ============================================
+
+model UserCardState {
+  id        String   @id @default(cuid())
+  userId    String
+  cardId    String
+  
+  // FSRS state per card
+  easeFactor       Float   @default(2.5)    // SM-2 ease factor
+  interval         Int     @default(0)      // Days
+  repetitions      Int     @default(0)      // Number of successful reviews
+  lapses           Int     @default(0)      // Number of lapses (forgotten cards)
+  dueAt            DateTime @default(now()) // Next review due date
+  lastReviewedAt   DateTime?                // Last review timestamp
+
+  // Mastery tracking: card learned when both directions are retained
+  isForwardLearned Boolean @default(false)  // Armenian → English learned
+  isReverseLearned Boolean @default(false)  // English → Armenian learned
+  isMastered       Boolean @default(false)  // Both directions learned
+  
+  suspendedAt      DateTime? // null = active, set = suspended
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  user       User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card       Card  @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  reviews    ReviewLog[]
+
+  @@unique([userId, cardId])
+  @@index([userId])
+  @@index([cardId])
+  @@index([dueAt])
+  @@index([isMastered])
+}
+
+model ReviewLog {
+  id        String   @id @default(cuid())
+  userId    String
+  cardId    String
+  userCardStateId String
+  
+  // Review outcome per direction
+  direction        String   // "forward" (Armenian→English) or "reverse" (English→Armenian)
+  grade            Int      // 0-4 scale: 0=again, 1=hard, 2=good, 3=easy, 4=perfect (if enabled)
+  responseTime     Int?     // milliseconds
+  scheduledBefore  DateTime // What was the due date before this review?
+  scheduledAfter   DateTime // What is the new due date after this review?
+
+  createdAt        DateTime @default(now())
+
+  // Relations
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card          Card         @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  userCardState UserCardState @relation(fields: [userCardStateId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([cardId])
+  @@index([createdAt])
+}
+
+// ============================================
+// IMPORT TRACKING
+// ============================================
+
+model ImportJob {
+  id        String   @id @default(cuid())
+  deckId    String
+  mode      String   // "new_deck" or "update_deck"
+  fileName  String
+  fileHash  String   // SHA256 hash for deduplication
+  
+  rowsParsed    Int
+  rowsInserted  Int
+  rowsUpdated   Int
+  rowsSkipped   Int
+  errors        String? // JSON array of row-level errors
+
+  appliedAt DateTime @default(now())
+
+  // Relations
+  deck Deck @relation(fields: [deckId], references: [id], onDelete: Cascade)
+
+  @@index([deckId])
+}

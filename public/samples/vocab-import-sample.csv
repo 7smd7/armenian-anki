@@ -1,0 +1,8 @@
+difficulty,Armenian Script,Translit.,English Meaning,Example Sentence + [Translation],Grammar (Root/Infinitive + Imperative),Cheat Phrase (Mnemonic),Topic/Tag
+// difficulty: 1 = very easy  2 = easy  3 = medium  4 = hard  5 = very hard  (rows starting with // are ignored on import)
+3,Մեծ,mets,Big,"Սա մեծ տուն է։ [This is a big house.]","Adjective. Root: մեծ (mets). No inflection in nominative singular.",A *met*eorite is *big* in the sky.,Adjectives & Characteristics
+3,Կարմիր,karmeer,Red,"Կարմիր երթուղի - ճանապարհ։ [The red route - a path.]","Adjective. Root: կարմիր (karmeer). Describes color.",A *car* painted *red* is fast.,Colors
+3,Սեր,ser,Love,"Սեր հաջողության կն դուր։ [Love of success is sweet.]","Noun. Root: սեր (ser). Feminine. Nominative singular: սեր.",*Ser*ve love to others.,Emotions & Physical States
+3,Հայ,hay,Armenian,"Ես հայ եմ։ [I am Armenian.]","Adjective/Noun. Root: հայ (hay). Describes ethnicity or person.",*Hay* is where Armenians are from.,Nationalities & Cultures
+3,Թե,tu,If,"Թե հա, թե ո՛չ։ [If yes, if no.]","Conjunction. Used for conditional statements.","*Though* really, if you ask.",Grammar & Particles
+3,Պետք,pedk,Need,"Մեզ պետք է ջուր։ [We need water.]","Verb (auxiliary). Used with dative object. Infinitive: պետք լինել.","A *pet* that's *keen* on water.",Verbs & Actions

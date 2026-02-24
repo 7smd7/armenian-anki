@@ -1,0 +1,50 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: armenian-anki-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-anki_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeMe123!}
+      POSTGRES_DB: ${DB_NAME:-armenian_anki}
+    volumes:
+      # Persist database data
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-anki_user} -d ${DB_NAME:-armenian_anki}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: armenian-anki-app
+    restart: unless-stopped
+    command: ["sh", "-c", "npx prisma db push && npm start"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: ${APP_PORT:-3001}
+      DATABASE_URL: postgresql://${DB_USER:-anki_user}:${DB_PASSWORD:-changeMe123!}@postgres:5432/${DB_NAME:-armenian_anki}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:${APP_PORT:-3001}}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+    ports:
+      - "${APP_PORT:-3001}:${APP_PORT:-3001}"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:${APP_PORT:-3001}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  default:
+    driver: bridge
