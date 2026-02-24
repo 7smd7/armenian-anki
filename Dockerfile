@@ -6,8 +6,9 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install ALL dependencies (devDeps needed for build: typescript, tailwind, eslint, etc.)
-RUN npm ci
+# Install ALL dependencies (--include=dev ensures devDeps are installed
+# even when Coolify injects NODE_ENV=production at build time)
+RUN npm ci --include=dev
 
 # Copy source code
 COPY . .
