@@ -24,6 +24,7 @@ export function FlashcardAnimated({
     onSkip,
 }: FlashcardAnimatedProps) {
     const [flipped, setFlipped] = useState(false);
+    const [showHints, setShowHints] = useState(false);
     const startTimeRef = useRef(0);
     const [prevCardKey, setPrevCardKey] = useState(
         () => `${card.armenianScript}|${card.englishMeaning}`,
@@ -62,8 +63,8 @@ export function FlashcardAnimated({
 
     return (
         <div className='flex flex-col gap-3 w-full'>
-            {/* DIRECTION TOGGLE — functional radio pills */}
-            <div className='flex gap-2 justify-center'>
+            {/* DIRECTION TOGGLE + HINTS TOGGLE */}
+            <div className='flex gap-2 justify-center items-center'>
                 <button
                     onClick={() => handleToggle(false)}
                     className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-all ${
@@ -83,6 +84,32 @@ export function FlashcardAnimated({
                     }`}
                 >
                     {state.isReverseLearned ? "✓" : "○"} Reverse
+                </button>
+                {/* Eye icon — show/hide hints (phonetic & category) */}
+                <button
+                    onClick={() => setShowHints((v) => !v)}
+                    title={showHints ? "Hide hints" : "Show hints"}
+                    className={`p-1.5 rounded-full border transition-all ${
+                        showHints
+                            ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                            : "bg-white text-gray-400 border-gray-200 hover:border-indigo-300 hover:text-indigo-500"
+                    }`}
+                    aria-label={showHints ? "Hide hints" : "Show hints"}
+                >
+                    {showHints ? (
+                        /* eye open */
+                        <svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+                            <path d='M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z' />
+                            <circle cx='12' cy='12' r='3' />
+                        </svg>
+                    ) : (
+                        /* eye off */
+                        <svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+                            <path d='M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94' />
+                            <path d='M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19' />
+                            <line x1='1' y1='1' x2='23' y2='23' />
+                        </svg>
+                    )}
                 </button>
             </div>
 
@@ -112,13 +139,13 @@ export function FlashcardAnimated({
                         {frontText}
                     </div>
 
-                    {frontSub && (
+                    {frontSub && showHints && (
                         <div className='text-gray-400 text-lg tracking-wide'>
                             {frontSub}
                         </div>
                     )}
 
-                    {card.topic && (
+                    {card.topic && showHints && (
                         <span className='text-xs px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full border border-indigo-100 font-medium'>
                             {card.topic}
                         </span>
@@ -141,7 +168,18 @@ export function FlashcardAnimated({
                 </div>
             ) : (
                 /* ── BACK ── */
-                <div className='bg-linear-to-br from-indigo-50 to-purple-50 border-2 border-indigo-200 shadow-lg rounded-2xl px-6 py-6 flex flex-col items-center gap-3'>
+                <div
+                    className='bg-linear-to-br from-indigo-50 to-purple-50 border-2 border-indigo-200 shadow-lg rounded-2xl px-6 py-6 flex flex-col items-center gap-3 cursor-pointer select-none'
+                    onClick={() => setFlipped(false)}
+                    role='button'
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                        if (e.key === " " || e.key === "Enter") {
+                            e.preventDefault();
+                            setFlipped(false);
+                        }
+                    }}
+                >
                     {/* Question reminder — what was on the front */}
                     <div className='w-full flex items-center gap-2 pb-3 border-b border-indigo-100'>
                         <span className='text-xs text-gray-400 shrink-0'>
@@ -218,11 +256,11 @@ export function FlashcardAnimated({
                     <p className='text-center text-sm text-gray-500 font-medium'>
                         How well did you remember?
                     </p>
-                    <div className='grid grid-cols-5 gap-1.5'>
+                    <div className='grid grid-cols-4 gap-1.5 w-full'>
                         {GRADE_CONFIG.map(({ grade, label, emoji, bg }) => (
                             <button
                                 key={grade}
-                                className={`grade-btn text-white flex-col gap-0.5 ${bg}`}
+                                className={`grade-btn text-white flex-col gap-0.5 ${bg} w-full`}
                                 onClick={() => handleGrade(grade)}
                             >
                                 <span className='text-lg leading-none'>

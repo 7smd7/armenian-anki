@@ -23,10 +23,4 @@ export const GRADE_CONFIG = [
         emoji: "😊",
         bg: "bg-green-500 hover:bg-green-600 active:bg-green-700",
     },
-    {
-        grade: 4,
-        label: "Perfect",
-        emoji: "🤩",
-        bg: "bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700",
-    },
 ] as const;

@@ -12,14 +12,14 @@ export interface MasteryState {
 /**
  * Update mastery state based on review performance.
  * A direction is "learned" when user demonstrates they can reliably recall it.
- * Simplified: mark learned after first successful review (grade >= 2); revert on lapse (grade < 2).
+ * Simplified: mark learned after first successful review (grade >= 1); revert on lapse (grade < 1).
  */
 export function updateMasteryState(
   currentState: MasteryState,
   direction: 'forward' | 'reverse',
   grade: number
 ): MasteryState {
-  const isSuccess = grade >= 2;
+  const isSuccess = grade >= 1;
 
   if (direction === 'forward') {
     return {

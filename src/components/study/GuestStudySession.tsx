@@ -140,9 +140,9 @@ export function GuestStudySession({ onRequestSignIn }: GuestStudySessionProps) {
             const scheduled = scheduler.schedule(fsrsState, grade);
 
             const isForwardLearned =
-                currentState.isForwardLearned || (!reverse && grade >= 2);
+                currentState.isForwardLearned || (!reverse && grade >= 1);
             const isReverseLearned =
-                currentState.isReverseLearned || (reverse && grade >= 2);
+                currentState.isReverseLearned || (reverse && grade >= 1);
 
             const newState: GuestCardState = {
                 easeFactor: scheduled.easeFactor,
@@ -160,7 +160,7 @@ export function GuestStudySession({ onRequestSignIn }: GuestStudySessionProps) {
 
             // Move to next due card
             const remaining = dueQueue.slice(1);
-            if (grade < 2) {
+            if (grade === 0) {
                 // Requeue at a random position for "Again"
                 const reinsertAt = Math.min(
                     Math.floor(Math.random() * 5) + 1,

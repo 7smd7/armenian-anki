@@ -36,23 +36,23 @@ export class FSRSScheduler {
 
     /**
      * Schedule the next review based on user response.
-     * Grade: 0 = again, 1 = hard, 2 = good, 3 = easy, 4 = perfect
+     * Grade: 0 = again, 1 = hard, 2 = good, 3 = easy
      */
     schedule(
         state: CardState,
         grade: number,
         now: Date = new Date(),
     ): ScheduledInfo {
-        if (grade < 0 || grade > 4) {
-            throw new Error("Grade must be between 0 and 4");
+        if (grade < 0 || grade > 3) {
+            throw new Error("Grade must be between 0 and 3");
         }
 
         const { interval } = state;
         let { easeFactor, repetitions, lapses } = state;
         let nextInterval = interval;
 
-        if (grade < 2) {
-            // Lapse: incorrect response
+        if (grade < 1) {
+            // Lapse: incorrect response (only grade 0)
             lapses++;
             repetitions = 0;
             nextInterval = 1;
@@ -70,11 +70,12 @@ export class FSRSScheduler {
                 nextInterval = Math.round(interval * easeFactor);
             }
 
-            // Adjust ease factor based on grade
+            // Adjust ease factor based on grade (shifted for 0..3 scale)
+            // Map: 1 -> previous 2 adjustment, 2 -> previous 3, 3 -> previous 4
             const adjustments: { [key: number]: number } = {
-                2: -0.14,
-                3: 0,
-                4: 0.1,
+                1: -0.14,
+                2: 0,
+                3: 0.1,
             };
 
             if (adjustments[grade] !== undefined) {

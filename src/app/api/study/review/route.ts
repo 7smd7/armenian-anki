@@ -34,9 +34,9 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        if (typeof grade !== "number" || grade < 0 || grade > 4) {
+        if (typeof grade !== "number" || grade < 0 || grade > 3) {
             return NextResponse.json(
-                { error: "Grade must be 0-4" },
+                { error: "Grade must be 0-3" },
                 { status: 400 },
             );
         }
