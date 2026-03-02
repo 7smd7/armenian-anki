@@ -25,7 +25,14 @@ export async function GET(
         // Fetch deck and validate ownership
         const deck = await prisma.deck.findUnique({
             where: { id: deckId },
-            include: { cards: { where: { isActive: true } } },
+            include: {
+                cards: {
+                    where: { isActive: true },
+                    include: {
+                        userStates: { where: { userId }, take: 1 },
+                    },
+                },
+            },
         });
 
         if (!deck || deck.ownerId !== userId) {
@@ -43,8 +50,17 @@ export async function GET(
 
         // Card rows
         for (const card of deck.cards) {
+            const state = card.userStates[0] ?? null;
+            // Reverse-map easeFactor → difficulty 1-4 (mirrors import mapping)
+            let difficulty = "";
+            if (state) {
+                if (state.isMastered || state.easeFactor >= 2.5) difficulty = "1";
+                else if (state.easeFactor >= 2.3) difficulty = "2";
+                else if (state.easeFactor >= 1.6) difficulty = "3";
+                else difficulty = "4";
+            }
             const row = [
-                card.difficultyBase?.toString() || "3", // Default to 3 if not set
+                difficulty,
                 card.armenianScript,
                 card.translit,
                 card.englishMeaning,

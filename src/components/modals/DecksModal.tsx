@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useAlert } from "@/components/modals/AlertProvider";
 import Link from "next/link";
 import { Modal } from "./Modal";
 import type { Deck } from "@/types/deck";
@@ -22,6 +23,8 @@ export function DecksModal({ isOpen, onClose, onOpenImport }: DecksModalProps) {
     const [renaming, setRenaming] = useState<string | null>(null);
     const [renameTitle, setRenameTitle] = useState("");
     const [seeding, setSeeding] = useState(false);
+
+    const { showAlert, showConfirm } = useAlert();
 
     const hasStarterDeck = decks.some((d) => d.slug === "hayeren-1");
 
@@ -80,9 +83,9 @@ export function DecksModal({ isOpen, onClose, onOpenImport }: DecksModalProps) {
 
     const handleDelete = async (deckId: string, title: string) => {
         if (
-            !window.confirm(
+            !(await showConfirm(
                 `Delete "${title}" and all its cards? This cannot be undone.`,
-            )
+            ))
         )
             return;
         setDeletingId(deckId);
@@ -92,7 +95,7 @@ export function DecksModal({ isOpen, onClose, onOpenImport }: DecksModalProps) {
                 throw new Error((await r.json()).error ?? "Failed to delete");
             setDecks((prev) => prev.filter((d) => d.id !== deckId));
         } catch (e: unknown) {
-            alert(e instanceof Error ? e.message : String(e));
+            showAlert(e instanceof Error ? e.message : String(e));
         } finally {
             setDeletingId(null);
         }
@@ -120,7 +123,7 @@ export function DecksModal({ isOpen, onClose, onOpenImport }: DecksModalProps) {
             );
             setRenaming(null);
         } catch (e: unknown) {
-            alert(e instanceof Error ? e.message : String(e));
+            showAlert(e instanceof Error ? e.message : String(e));
         }
     };
 

@@ -37,7 +37,6 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
         grammar,
         cheatPhrase,
         topic,
-        difficultyBase,
     } = body;
 
     const updated = await prisma.card.update({
@@ -55,11 +54,6 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
             grammar: grammar?.trim() || null,
             cheatPhrase: cheatPhrase?.trim() || null,
             topic: topic?.trim() || null,
-            ...(difficultyBase !== undefined && {
-                difficultyBase: difficultyBase
-                    ? parseInt(difficultyBase)
-                    : null,
-            }),
         },
     });
 

@@ -11,6 +11,51 @@ import { generateSlug, sanitizeFileName } from "@/lib/server-utils";
 import crypto from "crypto";
 
 export async function POST(request: NextRequest) {
+    // Maps CSV difficulty (1-5, capped at 4) to an initial UserCardState shape.
+    // null = never studied (use Prisma defaults, card is due now).
+    function difficultyToInitialState(
+        difficulty: number | null | undefined,
+        now: Date,
+    ) {
+        const d = difficulty != null ? Math.min(difficulty, 4) : null;
+        if (d == null) return {}; // let Prisma defaults kick in
+        if (d <= 1)
+            return {
+                easeFactor: 2.6,
+                interval: 7,
+                repetitions: 1,
+                isForwardLearned: true,
+                isReverseLearned: true,
+                isMastered: true,
+                lastReviewedAt: now,
+                dueAt: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
+            };
+        if (d === 2)
+            return {
+                easeFactor: 2.5,
+                interval: 3,
+                repetitions: 1,
+                isForwardLearned: true,
+                lastReviewedAt: now,
+                dueAt: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000),
+            };
+        if (d === 3)
+            return {
+                easeFactor: 2.36,
+                interval: 1,
+                repetitions: 1,
+                lastReviewedAt: now,
+                dueAt: new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000),
+            };
+        // d >= 4: Again — don't know at all
+        return {
+            easeFactor: 1.3,
+            interval: 1,
+            lapses: 1,
+            lastReviewedAt: now,
+            dueAt: now,
+        };
+    }
     try {
         const session = await auth();
         if (!session?.user || !session.user.id) {
@@ -152,10 +197,8 @@ export async function POST(request: NextRequest) {
                     csvData["Grammar (Root/Infinitive + Imperative)"] || null,
                 cheatPhrase: csvData["Cheat Phrase (Mnemonic)"] || null,
                 topic: csvData["Topic/Tag"] || null,
-                difficultyBase: csvData.difficulty || null,
             };
 
-            // Upsert: check if card with this externalRowId exists in deck
             const existing = await prisma.card.findUnique({
                 where: {
                     deckId_externalRowId: {
@@ -166,15 +209,13 @@ export async function POST(request: NextRequest) {
             });
 
             if (existing) {
-                // Update existing card
                 await prisma.card.update({
                     where: { id: existing.id },
                     data: cardData,
                 });
                 rowsUpdated.push(externalRowId);
             } else {
-                // Create new card
-                await prisma.card.create({
+                const newCard = await prisma.card.create({
                     data: {
                         ...cardData,
                         deckId: deck.id,
@@ -182,24 +223,35 @@ export async function POST(request: NextRequest) {
                     },
                 });
                 rowsInserted.push(externalRowId);
+                // Seed initial SRS state from CSV difficulty
+                const now = new Date();
+                const initialState = difficultyToInitialState(
+                    csvData.difficulty ?? null,
+                    now,
+                );
+                await prisma.userCardState.create({
+                    data: { userId, cardId: newCard.id, ...initialState },
+                });
             }
         }
 
-        // Ensure progress state exists for this user on all cards in this deck
-        // (covers both new cards and previously imported cards missing state)
-        const deckCards = await prisma.card.findMany({
-            where: { deckId: deck.id, isActive: true },
-            select: { id: true },
-        });
-
-        if (deckCards.length > 0) {
-            await prisma.userCardState.createMany({
-                data: deckCards.map((card) => ({
-                    userId,
-                    cardId: card.id,
-                })),
-                skipDuplicates: true,
+        // For existing cards that were updated, ensure UserCardState exists
+        // (skipDuplicates so we never overwrite existing user progress)
+        if (rowsUpdated.length > 0) {
+            const updatedCards = await prisma.card.findMany({
+                where: {
+                    deckId: deck.id,
+                    isActive: true,
+                    externalRowId: { in: rowsUpdated },
+                },
+                select: { id: true },
             });
+            if (updatedCards.length > 0) {
+                await prisma.userCardState.createMany({
+                    data: updatedCards.map((c) => ({ userId, cardId: c.id })),
+                    skipDuplicates: true,
+                });
+            }
         }
 
         // Log import job

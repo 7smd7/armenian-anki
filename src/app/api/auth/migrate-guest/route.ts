@@ -76,7 +76,6 @@ export async function POST(request: NextRequest) {
         grammar: string | null;
         cheatPhrase: string | null;
         topic: string | null;
-        difficultyBase: number | null;
     }
 
     const rows: ParsedRow[] = [];
@@ -96,7 +95,6 @@ export async function POST(request: NextRequest) {
                 grammar: v["Grammar (Root/Infinitive + Imperative)"] ?? null,
                 cheatPhrase: v["Cheat Phrase (Mnemonic)"] ?? null,
                 topic: v["Topic/Tag"] ?? null,
-                difficultyBase: v.difficulty ?? null,
             });
         } catch {
             /* skip invalid rows */
@@ -143,7 +141,6 @@ export async function POST(request: NextRequest) {
                 grammar: row.grammar,
                 cheatPhrase: row.cheatPhrase,
                 topic: row.topic,
-                difficultyBase: row.difficultyBase,
             },
             update: {
                 armenianScript: row.armenianScript,

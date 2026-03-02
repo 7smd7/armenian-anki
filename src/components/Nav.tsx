@@ -1,7 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
 import Link from "next/link";
+import { DecksModal } from "@/components/modals/DecksModal";
+import { ImportModal } from "@/components/modals/ImportModal";
 
 interface NavProps {
     onOpenDecks?: () => void;
@@ -11,7 +14,14 @@ export function Nav({ onOpenDecks }: NavProps) {
     const { data: session, status } = useSession();
     const isLoading = status === "loading";
 
+    // Self-managed modal state used on any page that doesn't supply onOpenDecks
+    const [ownDecksOpen, setOwnDecksOpen] = useState(false);
+    const [ownImportOpen, setOwnImportOpen] = useState(false);
+    const selfManaged = !onOpenDecks;
+    const handleOpenDecks = onOpenDecks ?? (() => setOwnDecksOpen(true));
+
     return (
+        <>
         <header className='sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-gray-100'>
             <div className='max-w-2xl mx-auto px-4 h-14 flex items-center justify-between gap-3'>
                 {/* Logo */}
@@ -32,7 +42,7 @@ export function Nav({ onOpenDecks }: NavProps) {
                     ) : session ? (
                         <>
                             <button
-                                onClick={onOpenDecks}
+                                onClick={handleOpenDecks}
                                 className='flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors'
                             >
                                 <svg
@@ -92,6 +102,21 @@ export function Nav({ onOpenDecks }: NavProps) {
                 </div>
             </div>
         </header>
+
+        {selfManaged && (
+            <>
+                <DecksModal
+                    isOpen={ownDecksOpen}
+                    onClose={() => setOwnDecksOpen(false)}
+                    onOpenImport={() => { setOwnDecksOpen(false); setOwnImportOpen(true); }}
+                />
+                <ImportModal
+                    isOpen={ownImportOpen}
+                    onClose={() => { setOwnImportOpen(false); setOwnDecksOpen(true); }}
+                />
+            </>
+        )}
+        </>
     );
 }
 

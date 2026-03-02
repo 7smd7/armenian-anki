@@ -9,7 +9,6 @@ export interface CardData {
     grammar?: string | null;
     cheatPhrase?: string | null;
     topic?: string | null;
-    difficultyBase?: number | null;
 }
 
 export interface CardStateData {
@@ -20,6 +19,28 @@ export interface CardStateData {
     isForwardLearned: boolean;
     isReverseLearned: boolean;
     isMastered: boolean;
+}
+
+/** Per-card SRS progress returned by the deck-management API */
+export interface DeckCardSrsState {
+    easeFactor: number;
+    interval: number;
+    repetitions: number;
+    lapses: number;
+    dueAt: string;
+    lastReviewedAt: string | null;
+    isForwardLearned: boolean;
+    isReverseLearned: boolean;
+    isMastered: boolean;
+}
+
+/** Deck-wide statistics returned alongside the card list */
+export interface DeckStats {
+    total: number;
+    mastered: number;
+    learning: number;
+    dueToday: number;
+    notStarted: number;
 }
 
 /** Card shape returned by the deck-management API */
@@ -33,7 +54,8 @@ export interface DeckCard {
     grammar: string | null;
     cheatPhrase: string | null;
     topic: string | null;
-    difficultyBase: number | null;
+    createdAt: string;
+    srsState: DeckCardSrsState | null;
 }
 
 /** Form state for adding / editing a deck card */
@@ -46,5 +68,4 @@ export interface CardEditForm {
     grammar: string;
     cheatPhrase: string;
     topic: string;
-    difficultyBase: string;
 }

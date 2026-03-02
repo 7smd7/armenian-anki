@@ -286,7 +286,6 @@ export function GuestStudySession({ onRequestSignIn }: GuestStudySessionProps) {
         grammar: c.grammar,
         cheatPhrase: c.cheatPhrase,
         topic: c.topic,
-        difficultyBase: c.difficultyBase,
     });
 
     return (

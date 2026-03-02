@@ -9,7 +9,6 @@ export const EMPTY_FORM: CardEditForm = {
     grammar: "",
     cheatPhrase: "",
     topic: "",
-    difficultyBase: "",
 };
 
 export function cardToForm(c: DeckCard): CardEditForm {
@@ -22,7 +21,5 @@ export function cardToForm(c: DeckCard): CardEditForm {
         grammar: c.grammar ?? "",
         cheatPhrase: c.cheatPhrase ?? "",
         topic: c.topic ?? "",
-        difficultyBase:
-            c.difficultyBase != null ? String(c.difficultyBase) : "",
     };
 }

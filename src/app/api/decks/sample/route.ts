@@ -22,7 +22,6 @@ export interface SampleCard {
     grammar: string | null;
     cheatPhrase: string | null;
     topic: string | null;
-    difficultyBase: number | null;
 }
 
 // Cache the parsed result in memory (server restarts clear it)
@@ -95,7 +94,6 @@ export async function GET() {
                     validated["Grammar (Root/Infinitive + Imperative)"] ?? null,
                 cheatPhrase: validated["Cheat Phrase (Mnemonic)"] ?? null,
                 topic: validated["Topic/Tag"] ?? null,
-                difficultyBase: validated.difficulty ?? null,
             });
         } catch {
             // Skip invalid rows

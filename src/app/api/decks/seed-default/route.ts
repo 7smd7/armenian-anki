@@ -96,7 +96,6 @@ export async function POST() {
                         null,
                     cheatPhrase: csvData["Cheat Phrase (Mnemonic)"] ?? null,
                     topic: csvData["Topic/Tag"] ?? null,
-                    difficultyBase: csvData.difficulty ?? 5,
                 },
                 update: {},
             });
