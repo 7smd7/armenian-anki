@@ -1,0 +1,59 @@
+# Development Docker Compose — hot reload enabled
+# Usage: docker compose -f docker-compose.dev.yml up
+# Production compose (docker-compose.yml) is left untouched.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: armenian-anki-db-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-anki_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeMe123!}
+      POSTGRES_DB: ${DB_NAME:-armenian_anki_dev}
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"   # Expose on a different host port to avoid clashing with production
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-anki_user} -d ${DB_NAME:-armenian_anki_dev}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: armenian-anki-app-dev
+    # Mount the entire source tree so Next.js picks up every file change.
+    # node_modules and .next use anonymous volumes so they stay inside the
+    # container and are not overwritten by the host mount.
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      DATABASE_URL: postgresql://${DB_USER:-anki_user}:${DB_PASSWORD:-changeMe123!}@postgres:5432/${DB_NAME:-armenian_anki_dev}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-dev-secret-32-characters-minimum!!}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      # Tell Next.js / chokidar to use polling so inotify works inside Docker
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "3001:3001"
+
+volumes:
+  postgres_data_dev:
+    driver: local
+
+networks:
+  default:
+    driver: bridge

@@ -2,6 +2,9 @@ import withPWA from "@ducanh2912/next-pwa";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+    // Empty turbopack config silences the "webpack config present but no
+    // turbopack config" error in Next.js 16. PWA is disabled in dev anyway.
+    turbopack: {},
     images: {
         remotePatterns: [
             {
