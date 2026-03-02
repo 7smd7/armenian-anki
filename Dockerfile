@@ -53,5 +53,5 @@ EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node -e "const p=process.env.PORT||3001;require('http').get(`http://localhost:${p}`, (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
 
-# Start app
-CMD ["npm", "start"]
+# Run migrations then start app
+CMD ["sh", "-c", "npx prisma migrate deploy && npm start"]
