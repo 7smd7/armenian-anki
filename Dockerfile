@@ -9,15 +9,18 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
+# Copy Prisma schema before npm ci so the postinstall hook
+# ("prisma generate") can run successfully during installation
+COPY prisma ./prisma
+COPY prisma.config.ts ./
+
 # Install ALL dependencies (--include=dev ensures devDeps are installed
 # even when Coolify injects NODE_ENV=production at build time)
+# postinstall automatically runs `prisma generate`
 RUN npm ci --include=dev
 
-# Copy source code
+# Copy remaining source code
 COPY . .
-
-# Generate Prisma client
-RUN npx prisma generate
 
 # Build Next.js
 RUN npm run build

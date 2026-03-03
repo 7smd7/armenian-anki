@@ -5,20 +5,18 @@ RUN apk update && apk upgrade --no-cache
 
 WORKDIR /app
 
-# Copy package files and install all dependencies (including devDeps)
+# Copy package files and Prisma schema before npm ci so the postinstall
+# hook ("prisma generate") can run. A dummy DATABASE_URL is needed because
+# prisma.config.ts reads it at load time (no real DB required for generate).
 COPY package*.json ./
-RUN npm ci
-
-# Generate Prisma client (source will be mounted over this, but we need
-# the generated client available before the volume mount kicks in)
 COPY prisma ./prisma
 COPY prisma.config.ts ./
-# prisma.config.ts requires DATABASE_URL to load, but generate doesn't need
-# a real DB — pass a dummy value so the config file resolves without error.
-RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate
+RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npm ci
 
 # Expose Next.js dev port
 EXPOSE 3001
 
 # Start Next.js in dev mode (hot reload enabled)
-CMD ["sh", "-c", "npx prisma db push && npm run dev"]
+# Re-generate the Prisma client AFTER the source volume is mounted so the
+# in-container client always matches the live schema, then sync the DB.
+CMD ["sh", "-c", "npx prisma generate && npx prisma db push --accept-data-loss && npm run dev"]
