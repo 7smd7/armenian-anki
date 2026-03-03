@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import Image from "next/image";
 import type { CardData, CardStateData } from "@/types/card";
 import { GRADE_CONFIG } from "@/constants/gradeConfig";
 
@@ -30,6 +31,12 @@ export function FlashcardAnimated({
         () => `${card.armenianScript}|${card.englishMeaning}`,
     );
 
+    // Simple in-memory cache for GIF results to avoid refetching repeatedly
+    const gifCacheRef = useRef<Map<string, string[]>>(new Map());
+    const [gifUrls, setGifUrls] = useState<string[] | null>(null);
+    const [, setGifLoading] = useState(false);
+    const [gifError, setGifError] = useState<string | null>(null);
+
     // Reset card when content changes (render-time state adjustment)
     const cardKey = `${card.armenianScript}|${card.englishMeaning}`;
     if (cardKey !== prevCardKey) {
@@ -47,6 +54,55 @@ export function FlashcardAnimated({
     const backLabel = reverse ? "ARMENIAN" : "ENGLISH";
     const backText = reverse ? card.armenianScript : card.englishMeaning;
     const backSub = reverse ? card.translit : null;
+
+    const giphyKey = process.env.NEXT_PUBLIC_GIPHY_API_KEY;
+    const gifQuery = useMemo(() => {
+        // Prefer the English meaning for image search; fallback to Armenian script
+        return (card.englishMeaning || card.armenianScript || "").trim();
+    }, [card.englishMeaning, card.armenianScript]);
+
+    // Fetch GIFs when the card is flipped. Use a small limit and cache results per query.
+    useEffect(() => {
+        let cancelled = false;
+        async function fetchGifs() {
+            if (!gifQuery || !giphyKey || !navigator?.onLine) return;
+            const cache = gifCacheRef.current;
+            if (cache.has(gifQuery)) {
+                setGifUrls(cache.get(gifQuery) || []);
+                return;
+            }
+
+            setGifLoading(true);
+            setGifError(null);
+            try {
+                const params = new URLSearchParams({
+                    api_key: giphyKey,
+                    q: gifQuery,
+                    limit: "4",
+                    rating: "g",
+                    lang: "en",
+                });
+                const url = `https://api.giphy.com/v1/gifs/search?${params.toString()}`;
+                const res = await fetch(url);
+                if (!res.ok) throw new Error(`Giphy fetch failed: ${res.status}`);
+                const data = await res.json();
+                if (cancelled) return;
+                const urls: string[] = (data.data || []).map((g: any) => g.images?.fixed_height_small?.url || g.images?.downsized_medium?.url).filter(Boolean);
+                cache.set(gifQuery, urls);
+                setGifUrls(urls);
+            } catch (err: any) {
+                if (!cancelled) setGifError(err?.message || "Failed to fetch GIFs");
+            } finally {
+                if (!cancelled) setGifLoading(false);
+            }
+        }
+
+        if (flipped) fetchGifs();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [flipped, gifQuery, giphyKey]);
 
     const handleGrade = useCallback(
         (grade: number) => {
@@ -278,6 +334,45 @@ export function FlashcardAnimated({
                     >
                         Skip for now
                     </button>
+                </div>
+            )}
+
+            {/* GIPHY SECTION — fetch & show illustrative GIFs if online and key present */}
+            {flipped && gifQuery && giphyKey && (
+                <div className='w-full'>
+                    {/* Loading shimmer */}
+                    {gifUrls === null && !gifError && (
+                        <div className='flex gap-2 py-1'>
+                            {[1, 2, 3].map((n) => (
+                                <div key={n} className='h-28 w-28 rounded-lg bg-gray-100 animate-pulse shrink-0' />
+                            ))}
+                        </div>
+                    )}
+                    {/* GIFs */}
+                    {gifUrls && gifUrls.length > 0 && (
+                        <div className='relative group'>
+                            <div className='flex gap-2 overflow-x-auto py-1'>
+                                {gifUrls.map((url, i) => (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                        key={i}
+                                        src={url}
+                                        alt={`${gifQuery} gif ${i + 1}`}
+                                        className='h-28 rounded-lg border object-cover shrink-0'
+                                        loading='lazy'
+                                    />
+                                ))}
+                            </div>
+                            <div className='pointer-events-none absolute top-1 right-0'>
+                                <Image
+                                    src='/Poweredby_100px_Badge.gif'
+                                    alt='Powered by GIPHY'
+                                    width={30}
+                                    height={12}
+                                />
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
