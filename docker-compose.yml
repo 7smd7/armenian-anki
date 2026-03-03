@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USER:-anki_user}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeMe123!}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
       POSTGRES_DB: ${DB_NAME:-armenian_anki}
     volumes:
       # Persist database data
@@ -26,7 +26,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: ${APP_PORT:-3001}
-      DATABASE_URL: postgresql://${DB_USER:-anki_user}:${DB_PASSWORD:-changeMe123!}@postgres:5432/${DB_NAME:-armenian_anki}
+      DATABASE_URL: postgresql://${DB_USER:-anki_user}:${DB_PASSWORD:?DB_PASSWORD must be set in .env}@postgres:5432/${DB_NAME:-armenian_anki}
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:${APP_PORT:-3001}}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
