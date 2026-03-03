@@ -34,17 +34,17 @@ RUN apk update && apk upgrade --no-cache
 WORKDIR /app
 
 # Install production dependencies only
+# Prisma files must be present before npm ci so the postinstall
+# hook ("prisma generate") can find the schema.
 COPY package*.json ./
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/prisma.config.ts ./
 RUN npm ci --omit=dev
 
 # Copy built app from builder
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/src/generated ./src/generated
-
-# Copy Prisma schema and config
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/prisma.config.ts ./
 
 # Copy environment template
 COPY .env.example ./.env.example
