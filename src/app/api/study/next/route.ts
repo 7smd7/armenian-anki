@@ -1,9 +1,23 @@
 // API route for fetching the next card to study
 // GET /api/study/next?deckId=xxx&topic=xxx
+//
+// Implements the simplified next-card selection algorithm:
+// 1. Learning card due now (same-day reinforcement)
+// 2. Review card due now (oldest-due first)
+// 3. New card (only if openLearningTodayCount < ACTIVE_LEARNING_LIMIT)
+// 4. Session complete
+//
+// Cards scheduled later today are simply ignored until they become due.
+// No wait states — the user is never blocked.
 
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import {
+    ACTIVE_LEARNING_LIMIT,
+    startOfUTCDay,
+    startOfNextUTCDay,
+} from "@/lib/srs/learning-overlay";
 
 export async function GET(request: NextRequest) {
     try {
@@ -20,8 +34,6 @@ export async function GET(request: NextRequest) {
         const deckId = searchParams.get("deckId");
         const topic = searchParams.get("topic");
         const reverseMode = searchParams.get("reverse") === "true";
-        const skipParam = searchParams.get("skip");
-        const skipIds = skipParam ? skipParam.split(",").filter(Boolean) : [];
 
         if (!deckId) {
             return NextResponse.json(
@@ -42,7 +54,7 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        // Backfill missing user states for this deck (for decks imported before state initialization existed)
+        // Backfill missing user states for this deck
         const totalCards = await prisma.card.count({
             where: { deckId, isActive: true },
         });
@@ -71,126 +83,83 @@ export async function GET(request: NextRequest) {
             }
         }
 
-        // Find next card to study
-        // Query for cards in deck that are:
-        // 1. Active
-        // 2. Not mastered (isMastered = false)
-        // 3. Due for review (dueAt <= now)
-        // 4. Optionally filtered by topic
-        // 5. Not suspended
-
+        // ── Time boundaries (UTC) ──
         const now = new Date();
+        const startOfToday = startOfUTCDay(now);
+        const startOfTomorrow = startOfNextUTCDay(now);
 
-        const query = prisma.card.findFirst({
-            where: {
-                deckId,
-                isActive: true,
-                ...(skipIds.length > 0 ? { id: { notIn: skipIds } } : {}),
-                userStates: {
-                    some: {
-                        userId,
-                        isMastered: false,
-                        dueAt: { lte: now },
-                        suspendedAt: null,
-                    },
-                },
-                ...(topic ? { topic } : {}),
-            },
-            include: {
-                userStates: {
-                    where: { userId },
-                },
-            },
-            orderBy: {
-                userStates: {
-                    _count: "asc", // Cards with fewer reviews first
-                },
-            },
-        });
-
-        // Fallback: if no card is due, fetch the earliest upcoming card
-        let card = await query;
-
-        if (!card) {
-            card = await prisma.card.findFirst({
-                where: {
-                    deckId,
-                    isActive: true,
-                    ...(skipIds.length > 0 ? { id: { notIn: skipIds } } : {}),
-                    userStates: {
-                        some: {
-                            userId,
-                            isMastered: false,
-                            suspendedAt: null,
-                        },
-                    },
-                    ...(topic ? { topic } : {}),
-                },
-                include: {
-                    userStates: {
-                        where: { userId },
-                    },
-                },
-                orderBy: {
-                    userStates: {
-                        _count: "asc",
-                    },
-                },
-            });
-        }
-
-        if (!card) {
-            return NextResponse.json({
-                card: null,
-                remaining: 0,
-                totalCards,
-                completed: true,
-            });
-        }
-
-        const cardState = card.userStates[0];
-
-        // Count remaining cards
-        const remaining = await prisma.card.count({
-            where: {
-                deckId,
-                isActive: true,
-                userStates: {
-                    some: {
-                        userId,
-                        isMastered: false,
-                        suspendedAt: null,
-                    },
-                },
-                ...(topic ? { topic } : {}),
-            },
-        });
-
-        return NextResponse.json({
+        // ── Shared WHERE clause ──
+        const COMMON = {
+            userId,
             card: {
-                id: card.id,
-                armenianScript: card.armenianScript,
-                translit: card.translit,
-                englishMeaning: card.englishMeaning,
-                exampleSentence: card.exampleSentence,
-                exampleTranslation: card.exampleTranslation,
-                grammar: card.grammar,
-                cheatPhrase: card.cheatPhrase,
-                topic: card.topic,
+                deckId,
+                isActive: true,
+                ...(topic ? { topic } : {}),
             },
+            isMastered: false,
+            suspendedAt: null,
+        };
+
+        // ── Priority 1: learning card due now ──
+        const learningDue = await prisma.userCardState.findFirst({
+            where: {
+                ...COMMON,
+                lastReviewedAt: { gte: startOfToday },
+                dueAt: { lte: now },
+            },
+            orderBy: { dueAt: "asc" },
+            include: { card: true },
+        });
+
+        if (learningDue) {
+            return buildCardResponse(learningDue, reverseMode, totalCards);
+        }
+
+        // ── Priority 2: review card due now ──
+        const reviewDue = await prisma.userCardState.findFirst({
+            where: {
+                ...COMMON,
+                lastReviewedAt: { not: null, lt: startOfToday },
+                dueAt: { lte: now },
+            },
+            orderBy: { dueAt: "asc" },
+            include: { card: true },
+        });
+
+        if (reviewDue) {
+            return buildCardResponse(reviewDue, reverseMode, totalCards);
+        }
+
+        // ── Priority 3: new card (only if under learning limit) ──
+        const openCount = await prisma.userCardState.count({
+            where: {
+                ...COMMON,
+                lastReviewedAt: { gte: startOfToday },
+                dueAt: { lt: startOfTomorrow },
+            },
+        });
+
+        if (openCount < ACTIVE_LEARNING_LIMIT) {
+            const newCard = await prisma.userCardState.findFirst({
+                where: {
+                    ...COMMON,
+                    lastReviewedAt: null,
+                },
+                orderBy: { card: { createdAt: "asc" } },
+                include: { card: true },
+            });
+
+            if (newCard) {
+                return buildCardResponse(newCard, reverseMode, totalCards);
+            }
+        }
+
+        // ── Priority 4: session complete ──
+        return NextResponse.json({
+            card: null,
+            remaining: 0,
             totalCards,
-            state: {
-                cardStateId: cardState.id,
-                reps: cardState.repetitions,
-                interval: cardState.interval,
-                ease: cardState.easeFactor,
-                lapses: cardState.lapses,
-                isForwardLearned: cardState.isForwardLearned,
-                isReverseLearned: cardState.isReverseLearned,
-                isMastered: cardState.isMastered,
-            },
-            reverse: reverseMode,
-            remaining,
+            completed: true,
         });
     } catch (error) {
         console.error("Study next error:", error);
@@ -202,4 +171,57 @@ export async function GET(request: NextRequest) {
             { status: 500 },
         );
     }
+}
+
+// ── Response builder ──────────────────────────────────────
+function buildCardResponse(
+    cardState: {
+        id: string;
+        easeFactor: number;
+        interval: number;
+        repetitions: number;
+        lapses: number;
+        isForwardLearned: boolean;
+        isReverseLearned: boolean;
+        isMastered: boolean;
+        card: {
+            id: string;
+            armenianScript: string;
+            translit: string;
+            englishMeaning: string;
+            exampleSentence: string | null;
+            exampleTranslation: string | null;
+            grammar: string | null;
+            cheatPhrase: string | null;
+            topic: string | null;
+        };
+    },
+    reverseMode: boolean,
+    totalCards: number,
+) {
+    return NextResponse.json({
+        card: {
+            id: cardState.card.id,
+            armenianScript: cardState.card.armenianScript,
+            translit: cardState.card.translit,
+            englishMeaning: cardState.card.englishMeaning,
+            exampleSentence: cardState.card.exampleSentence,
+            exampleTranslation: cardState.card.exampleTranslation,
+            grammar: cardState.card.grammar,
+            cheatPhrase: cardState.card.cheatPhrase,
+            topic: cardState.card.topic,
+        },
+        state: {
+            cardStateId: cardState.id,
+            reps: cardState.repetitions,
+            interval: cardState.interval,
+            ease: cardState.easeFactor,
+            lapses: cardState.lapses,
+            isForwardLearned: cardState.isForwardLearned,
+            isReverseLearned: cardState.isReverseLearned,
+            isMastered: cardState.isMastered,
+        },
+        reverse: reverseMode,
+        totalCards,
+    });
 }

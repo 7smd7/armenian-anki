@@ -1,11 +1,14 @@
 // API route for submitting a review
 // POST /api/study/review
 // Body: { cardStateId, cardId, direction, grade, responseTime }
+//
+// Uses the learning overlay for same-day scheduling decisions,
+// delegating to FSRSScheduler only on graduation.
 
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { createFSRSScheduler } from "@/lib/srs/fsrs";
+import { applyReview } from "@/lib/srs/learning-overlay";
 import { updateMasteryState } from "@/lib/srs/mastery";
 
 export async function POST(request: NextRequest) {
@@ -54,21 +57,22 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Schedule next review using FSRS
-        const scheduler = createFSRSScheduler();
+        // Apply review through learning overlay
         const now = new Date();
-        const scheduledInfo = scheduler.schedule(
+        const updatePayload = applyReview(
             {
                 easeFactor: cardState.easeFactor,
                 interval: cardState.interval,
                 repetitions: cardState.repetitions,
                 lapses: cardState.lapses,
+                dueAt: cardState.dueAt,
+                lastReviewedAt: cardState.lastReviewedAt,
             },
             grade,
             now,
         );
 
-        // Update mastery
+        // Update mastery (unchanged)
         const masteryUpdate = updateMasteryState(
             {
                 isForwardLearned: cardState.isForwardLearned,
@@ -83,12 +87,12 @@ export async function POST(request: NextRequest) {
         const updated = await prisma.userCardState.update({
             where: { id: cardStateId },
             data: {
-                easeFactor: scheduledInfo.easeFactor,
-                interval: scheduledInfo.interval,
-                repetitions: scheduledInfo.repetitions,
-                lapses: scheduledInfo.lapses,
-                dueAt: scheduledInfo.nextDueAt,
-                lastReviewedAt: now,
+                easeFactor: updatePayload.easeFactor,
+                interval: updatePayload.interval,
+                repetitions: updatePayload.repetitions,
+                lapses: updatePayload.lapses,
+                dueAt: updatePayload.dueAt,
+                lastReviewedAt: updatePayload.lastReviewedAt,
                 ...masteryUpdate,
             },
         });
@@ -102,8 +106,8 @@ export async function POST(request: NextRequest) {
                 direction,
                 grade,
                 responseTime: responseTime || null,
-                scheduledBefore: now,
-                scheduledAfter: scheduledInfo.nextDueAt,
+                scheduledBefore: cardState.dueAt,
+                scheduledAfter: updatePayload.dueAt,
             },
         });
 
