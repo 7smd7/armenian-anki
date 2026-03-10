@@ -7,6 +7,10 @@ import { GRADE_CONFIG } from "@/constants/gradeConfig";
 
 export type { CardData, CardStateData };
 
+// Module-level GIF cache — keyed by English query, persists for the entire browser session
+// regardless of component mount/unmount cycles.
+const gifSessionCache = new Map<string, string[]>();
+
 interface FlashcardAnimatedProps {
     card: CardData;
     state: CardStateData;
@@ -33,8 +37,6 @@ export function FlashcardAnimated({
         () => `${card.armenianScript}|${card.englishMeaning}`,
     );
 
-    // Simple in-memory cache for GIF results to avoid refetching repeatedly
-    const gifCacheRef = useRef<Map<string, string[]>>(new Map());
     const [gifUrls, setGifUrls] = useState<string[] | null>(null);
     const [, setGifLoading] = useState(false);
     const [gifError, setGifError] = useState<string | null>(null);
@@ -44,6 +46,10 @@ export function FlashcardAnimated({
     if (cardKey !== prevCardKey) {
         setPrevCardKey(cardKey);
         setFlipped(false);
+        setGifError(null);
+        // Immediately serve cached GIFs for this card, or clear stale ones from the previous card
+        const newQuery = (card.englishMeaning || card.armenianScript || "").trim();
+        setGifUrls(gifSessionCache.has(newQuery) ? (gifSessionCache.get(newQuery) ?? null) : null);
     }
 
     // Reset timer when card changes (side effect, ref mutation is safe in effects)
@@ -68,9 +74,8 @@ export function FlashcardAnimated({
         let cancelled = false;
         async function fetchGifs() {
             if (!gifQuery || !giphyKey || !navigator?.onLine) return;
-            const cache = gifCacheRef.current;
-            if (cache.has(gifQuery)) {
-                setGifUrls(cache.get(gifQuery) || []);
+            if (gifSessionCache.has(gifQuery)) {
+                setGifUrls(gifSessionCache.get(gifQuery) || []);
                 return;
             }
 
@@ -90,7 +95,7 @@ export function FlashcardAnimated({
                 const data = await res.json();
                 if (cancelled) return;
                 const urls: string[] = (data.data || []).map((g: any) => g.images?.fixed_height_small?.url || g.images?.downsized_medium?.url).filter(Boolean);
-                cache.set(gifQuery, urls);
+                gifSessionCache.set(gifQuery, urls);
                 setGifUrls(urls);
             } catch (err: any) {
                 if (!cancelled) setGifError(err?.message || "Failed to fetch GIFs");
