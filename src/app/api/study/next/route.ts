@@ -18,6 +18,7 @@ import {
     startOfUTCDay,
     startOfNextUTCDay,
 } from "@/lib/srs/learning-overlay";
+import { decideMixDirection } from "@/lib/srs/mastery";
 
 export async function GET(request: NextRequest) {
     try {
@@ -33,7 +34,8 @@ export async function GET(request: NextRequest) {
         const searchParams = request.nextUrl.searchParams;
         const deckId = searchParams.get("deckId");
         const topic = searchParams.get("topic");
-        const reverseMode = searchParams.get("reverse") === "true";
+        // "mix" | "forward" | "reverse" — default to mix
+        const directionParam = searchParams.get("direction") ?? "mix";
         const skipParam = searchParams.get("skip");
         const skipIds = skipParam ? skipParam.split(",").filter(Boolean) : [];
 
@@ -120,7 +122,7 @@ export async function GET(request: NextRequest) {
         });
 
         if (learningDue) {
-            return buildCardResponse(learningDue, reverseMode, totalCards, remaining);
+            return buildCardResponse(learningDue, directionParam, totalCards, remaining);
         }
 
         // ── Priority 2: review card due now ──
@@ -135,7 +137,7 @@ export async function GET(request: NextRequest) {
         });
 
         if (reviewDue) {
-            return buildCardResponse(reviewDue, reverseMode, totalCards, remaining);
+            return buildCardResponse(reviewDue, directionParam, totalCards, remaining);
         }
 
         // ── Priority 3: new card (only if under learning limit) ──
@@ -158,7 +160,7 @@ export async function GET(request: NextRequest) {
             });
 
             if (newCard) {
-                return buildCardResponse(newCard, reverseMode, totalCards, remaining);
+                return buildCardResponse(newCard, directionParam, totalCards, remaining);
             }
         }
 
@@ -204,10 +206,17 @@ function buildCardResponse(
             topic: string | null;
         };
     },
-    reverseMode: boolean,
+    direction: string,
     totalCards: number,
     remaining: number,
 ) {
+    const reverseMode =
+        direction === "mix"
+            ? decideMixDirection({
+                  isForwardLearned: cardState.isForwardLearned,
+                  isReverseLearned: cardState.isReverseLearned,
+              })
+            : direction === "reverse";
     return NextResponse.json({
         card: {
             id: cardState.card.id,

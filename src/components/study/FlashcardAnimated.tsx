@@ -11,7 +11,8 @@ interface FlashcardAnimatedProps {
     card: CardData;
     state: CardStateData;
     reverse: boolean;
-    onToggleReverse: (reverse: boolean) => void;
+    directionMode: "mix" | "forward" | "reverse";
+    onDirectionChange: (mode: "mix" | "forward" | "reverse") => void;
     onReview: (grade: number, responseTimeMs: number) => void;
     onSkip: () => void;
 }
@@ -20,7 +21,8 @@ export function FlashcardAnimated({
     card,
     state,
     reverse,
-    onToggleReverse,
+    directionMode,
+    onDirectionChange,
     onReview,
     onSkip,
 }: FlashcardAnimatedProps) {
@@ -111,10 +113,10 @@ export function FlashcardAnimated({
         [onReview],
     );
 
-    const handleToggle = (dir: boolean) => {
+    const handleToggle = (mode: "mix" | "forward" | "reverse") => {
         // Don't allow toggling while a card is flipped mid-review
         if (flipped) return;
-        onToggleReverse(dir);
+        onDirectionChange(mode);
     };
 
     return (
@@ -122,9 +124,19 @@ export function FlashcardAnimated({
             {/* DIRECTION TOGGLE + HINTS TOGGLE */}
             <div className='flex gap-2 justify-center items-center'>
                 <button
-                    onClick={() => handleToggle(false)}
+                    onClick={() => handleToggle("mix")}
                     className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-all ${
-                        !reverse
+                        directionMode === "mix"
+                            ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                            : "bg-white text-gray-500 border-gray-200 hover:border-indigo-300"
+                    }`}
+                >
+                    ◈ Mix
+                </button>
+                <button
+                    onClick={() => handleToggle("forward")}
+                    className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-all ${
+                        directionMode === "forward"
                             ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
                             : "bg-white text-gray-500 border-gray-200 hover:border-indigo-300"
                     }`}
@@ -132,9 +144,9 @@ export function FlashcardAnimated({
                     {state.isForwardLearned ? "✓" : "○"} Forward
                 </button>
                 <button
-                    onClick={() => handleToggle(true)}
+                    onClick={() => handleToggle("reverse")}
                     className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-all ${
-                        reverse
+                        directionMode === "reverse"
                             ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
                             : "bg-white text-gray-500 border-gray-200 hover:border-indigo-300"
                     }`}

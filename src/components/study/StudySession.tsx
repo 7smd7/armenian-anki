@@ -41,7 +41,8 @@ export function StudySession({
     const [state, setState] = useState<ApiCardState | null>(null);
     const [remaining, setRemaining] = useState(0);
     const [totalCards, setTotalCards] = useState(0);
-    const [reverse, setReverse] = useState(false);
+    const [directionMode, setDirectionMode] = useState<"mix" | "forward" | "reverse">("mix");
+    const [activeReverse, setActiveReverse] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [completed, setCompleted] = useState(false);
@@ -55,7 +56,7 @@ export function StudySession({
         try {
             const url = new URL("/api/study/next", window.location.origin);
             url.searchParams.set("deckId", deckId);
-            url.searchParams.set("reverse", reverse.toString());
+            url.searchParams.set("direction", directionMode);
             if (selectedTopic) url.searchParams.set("topic", selectedTopic);
             if (skippedIds.size > 0)
                 url.searchParams.set("skip", [...skippedIds].join(","));
@@ -74,6 +75,7 @@ export function StudySession({
             } else {
                 setCard(data.card);
                 setState(data.state);
+                setActiveReverse(data.reverse ?? false);
                 setRemaining(data.remaining ?? 0);
                 setTotalCards(data.totalCards ?? 0);
                 setCompleted(false);
@@ -83,7 +85,7 @@ export function StudySession({
         } finally {
             setLoading(false);
         }
-    }, [deckId, reverse, selectedTopic, skippedIds]);
+    }, [deckId, directionMode, selectedTopic, skippedIds]);
 
     useEffect(() => {
         fetchNextCard();
@@ -100,7 +102,7 @@ export function StudySession({
                     body: JSON.stringify({
                         cardStateId: state.cardStateId,
                         cardId: card.id,
-                        direction: reverse ? "reverse" : "forward",
+                        direction: activeReverse ? "reverse" : "forward",
                         grade,
                         responseTime,
                     }),
@@ -121,7 +123,7 @@ export function StudySession({
                 setError(err instanceof Error ? err.message : String(err));
             }
         },
-        [state, card, reverse, fetchNextCard],
+        [state, card, activeReverse, fetchNextCard],
     );
 
     if (loading) {
@@ -260,8 +262,9 @@ export function StudySession({
             <FlashcardAnimated
                 card={cardData}
                 state={stateData}
-                reverse={reverse}
-                onToggleReverse={(r) => setReverse(r)}
+                reverse={activeReverse}
+                directionMode={directionMode}
+                onDirectionChange={(m) => setDirectionMode(m)}
                 onReview={handleReview}
                 onSkip={() => {
                     if (card) setSkippedIds((s) => new Set([...s, card.id]));

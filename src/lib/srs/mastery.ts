@@ -44,3 +44,18 @@ export function updateMasteryState(
 export function shouldCardBeInQueue(isMastered: boolean): boolean {
   return !isMastered;
 }
+
+/**
+ * Decide which direction to show in Mix mode (weak-link priority).
+ * - Neither learned → Forward (build recognition before production)
+ * - Forward learned, reverse not → Reverse (fill the gap)
+ * - Reverse learned, forward not → Forward (fill the gap)
+ * - Both learned → isMastered, filtered out of queue — unreachable here
+ * Returns true for reverse, false for forward (matches the `reverse` boolean convention).
+ */
+export function decideMixDirection(state: {
+  isForwardLearned: boolean;
+  isReverseLearned: boolean;
+}): boolean {
+  return state.isForwardLearned && !state.isReverseLearned;
+}

@@ -45,6 +45,7 @@ export function GuestStudySession({ onRequestSignIn }: GuestStudySessionProps) {
     const [currentState, setCurrentState] = useState<GuestCardState | null>(
         null,
     );
+    const [directionMode, setDirectionMode] = useState<"mix" | "forward" | "reverse">("mix");
     const [reverse, setReverse] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -314,7 +315,13 @@ export function GuestStudySession({ onRequestSignIn }: GuestStudySessionProps) {
                 card={toCardData(currentCard)}
                 state={toCardStateData(currentState)}
                 reverse={reverse}
-                onToggleReverse={(r) => setReverse(r)}
+                directionMode={directionMode}
+                onDirectionChange={(m) => {
+                    setDirectionMode(m);
+                    if (m === "forward") setReverse(false);
+                    else if (m === "reverse") setReverse(true);
+                    // mix: keep current reverse as-is (guest demo doesn't use weak-link logic)
+                }}
                 onReview={handleReview}
                 onSkip={() => {
                     // Move current card to end of queue, no state change
