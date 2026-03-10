@@ -39,12 +39,14 @@ export function StudySession({
 }) {
     const [card, setCard] = useState<ApiCardData | null>(null);
     const [state, setState] = useState<ApiCardState | null>(null);
+    const [remaining, setRemaining] = useState(0);
     const [totalCards, setTotalCards] = useState(0);
     const [reverse, setReverse] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [completed, setCompleted] = useState(false);
     const [reviewsCount, setReviewsCount] = useState(0);
+    const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set());
     const [showImport, setShowImport] = useState(false);
 
     const fetchNextCard = useCallback(async () => {
@@ -55,6 +57,8 @@ export function StudySession({
             url.searchParams.set("deckId", deckId);
             url.searchParams.set("reverse", reverse.toString());
             if (selectedTopic) url.searchParams.set("topic", selectedTopic);
+            if (skippedIds.size > 0)
+                url.searchParams.set("skip", [...skippedIds].join(","));
 
             const res = await fetch(url);
             if (!res.ok) throw new Error("Failed to fetch card");
@@ -65,10 +69,12 @@ export function StudySession({
                 setCompleted(true);
                 setCard(null);
                 setState(null);
+                setRemaining(0);
                 setTotalCards(data.totalCards ?? 0);
             } else {
                 setCard(data.card);
                 setState(data.state);
+                setRemaining(data.remaining ?? 0);
                 setTotalCards(data.totalCards ?? 0);
                 setCompleted(false);
             }
@@ -77,7 +83,7 @@ export function StudySession({
         } finally {
             setLoading(false);
         }
-    }, [deckId, reverse, selectedTopic]);
+    }, [deckId, reverse, selectedTopic, skippedIds]);
 
     useEffect(() => {
         fetchNextCard();
@@ -103,6 +109,13 @@ export function StudySession({
                 if (!res.ok) throw new Error("Failed to submit review");
 
                 setReviewsCount((c) => c + 1);
+                // Card was graded — remove from skip list so it can resurface
+                if (card)
+                    setSkippedIds((s) => {
+                        const n = new Set(s);
+                        n.delete(card.id);
+                        return n;
+                    });
                 fetchNextCard();
             } catch (err: unknown) {
                 setError(err instanceof Error ? err.message : String(err));
@@ -182,6 +195,7 @@ export function StudySession({
                 <button
                     onClick={() => {
                         setReviewsCount(0);
+                        setSkippedIds(new Set());
                         setCompleted(false);
                         fetchNextCard();
                     }}
@@ -231,12 +245,15 @@ export function StudySession({
             <div className='flex items-center justify-between'>
                 <div className='flex items-center gap-2'>
                     <span className='text-sm font-bold text-gray-800'>
-                        {reviewsCount}
+                        {totalCards - remaining}
                     </span>
-                    <span className='text-sm text-gray-400'>reviewed</span>
+                    <span className='text-sm text-gray-400'>/</span>
+                    <span className='text-sm text-gray-500'>
+                        {totalCards} mastered
+                    </span>
                 </div>
                 <span className='text-xs text-gray-400'>
-                    {totalCards} total cards
+                    {reviewsCount} reviewed
                 </span>
             </div>
 
@@ -247,7 +264,8 @@ export function StudySession({
                 onToggleReverse={(r) => setReverse(r)}
                 onReview={handleReview}
                 onSkip={() => {
-                    fetchNextCard();
+                    if (card) setSkippedIds((s) => new Set([...s, card.id]));
+                    // skippedIds change triggers fetchNextCard via useEffect
                 }}
             />
         </div>

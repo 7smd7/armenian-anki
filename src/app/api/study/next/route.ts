@@ -34,6 +34,8 @@ export async function GET(request: NextRequest) {
         const deckId = searchParams.get("deckId");
         const topic = searchParams.get("topic");
         const reverseMode = searchParams.get("reverse") === "true";
+        const skipParam = searchParams.get("skip");
+        const skipIds = skipParam ? skipParam.split(",").filter(Boolean) : [];
 
         if (!deckId) {
             return NextResponse.json(
@@ -94,11 +96,17 @@ export async function GET(request: NextRequest) {
             card: {
                 deckId,
                 isActive: true,
+                ...(skipIds.length > 0 ? { id: { notIn: skipIds } } : {}),
                 ...(topic ? { topic } : {}),
             },
             isMastered: false,
             suspendedAt: null,
         };
+
+        // ── Remaining (non-mastered, non-suspended) count ──
+        const remaining = await prisma.userCardState.count({
+            where: COMMON,
+        });
 
         // ── Priority 1: learning card due now ──
         const learningDue = await prisma.userCardState.findFirst({
@@ -112,7 +120,7 @@ export async function GET(request: NextRequest) {
         });
 
         if (learningDue) {
-            return buildCardResponse(learningDue, reverseMode, totalCards);
+            return buildCardResponse(learningDue, reverseMode, totalCards, remaining);
         }
 
         // ── Priority 2: review card due now ──
@@ -127,7 +135,7 @@ export async function GET(request: NextRequest) {
         });
 
         if (reviewDue) {
-            return buildCardResponse(reviewDue, reverseMode, totalCards);
+            return buildCardResponse(reviewDue, reverseMode, totalCards, remaining);
         }
 
         // ── Priority 3: new card (only if under learning limit) ──
@@ -150,7 +158,7 @@ export async function GET(request: NextRequest) {
             });
 
             if (newCard) {
-                return buildCardResponse(newCard, reverseMode, totalCards);
+                return buildCardResponse(newCard, reverseMode, totalCards, remaining);
             }
         }
 
@@ -198,6 +206,7 @@ function buildCardResponse(
     },
     reverseMode: boolean,
     totalCards: number,
+    remaining: number,
 ) {
     return NextResponse.json({
         card: {
@@ -223,5 +232,6 @@ function buildCardResponse(
         },
         reverse: reverseMode,
         totalCards,
+        remaining,
     });
 }
