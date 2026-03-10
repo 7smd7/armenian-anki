@@ -10,6 +10,8 @@ export type { CardData, CardStateData };
 // Module-level GIF cache — keyed by English query, persists for the entire browser session
 // regardless of component mount/unmount cycles.
 const gifSessionCache = new Map<string, string[]>();
+// Words known to have no audio on Wiktionary — persists for the browser session.
+const noAudioCache = new Set<string>();
 
 interface FlashcardAnimatedProps {
     card: CardData;
@@ -40,6 +42,10 @@ export function FlashcardAnimated({
     const [gifUrls, setGifUrls] = useState<string[] | null>(null);
     const [, setGifLoading] = useState(false);
     const [gifError, setGifError] = useState<string | null>(null);
+    const [audioState, setAudioState] = useState<"idle" | "playing" | "error">(
+        () => noAudioCache.has(card.armenianScript) ? "error" : "idle"
+    );
+    const audioRef = useRef<HTMLAudioElement | null>(null);
 
     // Reset card when content changes (render-time state adjustment)
     const cardKey = `${card.armenianScript}|${card.englishMeaning}`;
@@ -47,6 +53,7 @@ export function FlashcardAnimated({
         setPrevCardKey(cardKey);
         setFlipped(false);
         setGifError(null);
+        setAudioState(noAudioCache.has(card.armenianScript) ? "error" : "idle");
         // Immediately serve cached GIFs for this card, or clear stale ones from the previous card
         const newQuery = (card.englishMeaning || card.armenianScript || "").trim();
         setGifUrls(gifSessionCache.has(newQuery) ? (gifSessionCache.get(newQuery) ?? null) : null);
@@ -110,6 +117,27 @@ export function FlashcardAnimated({
             cancelled = true;
         };
     }, [flipped, gifQuery, giphyKey]);
+
+    const playArmenianAudio = useCallback((e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current = null;
+        }
+        const url = `https://hy.wiktionary.org/wiki/Special:FilePath/Hy-${encodeURIComponent(card.armenianScript)}.ogg`;
+        const audio = new Audio(url);
+        audioRef.current = audio;
+        setAudioState("playing");
+        audio.play().catch(() => {
+            noAudioCache.add(card.armenianScript);
+            setAudioState("error");
+        });
+        audio.onended = () => setAudioState("idle");
+        audio.onerror = () => {
+            noAudioCache.add(card.armenianScript);
+            setAudioState("error");
+        };
+    }, [card.armenianScript]);
 
     const handleGrade = useCallback(
         (grade: number) => {
@@ -345,12 +373,48 @@ export function FlashcardAnimated({
                             </button>
                         ))}
                     </div>
-                    <button
-                        className='w-full py-2 rounded-xl text-sm text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all'
-                        onClick={onSkip}
-                    >
-                        Skip for now
-                    </button>
+                    <div className='flex gap-2'>
+                        {!card.armenianScript.includes(" ") && (
+                            <button
+                                onClick={playArmenianAudio}
+                                title={audioState === "error" ? "Audio unavailable for this word" : "Play Armenian pronunciation"}
+                                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium border transition-all ${
+                                    audioState === "playing"
+                                        ? "bg-indigo-600 text-white border-indigo-600"
+                                        : audioState === "error"
+                                        ? "bg-gray-100 text-gray-400 border-gray-200"
+                                        : "bg-white text-indigo-500 border-indigo-200 hover:bg-indigo-50 hover:border-indigo-400"
+                                }`}
+                            >
+                                {audioState === "playing" ? (
+                                    <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+                                        <polygon points='11 5 6 9 2 9 2 15 6 15 11 19 11 5' fill='currentColor' stroke='none' />
+                                        <path d='M15.54 8.46a5 5 0 0 1 0 7.07' />
+                                        <path d='M19.07 4.93a10 10 0 0 1 0 14.14' />
+                                    </svg>
+                                ) : audioState === "error" ? (
+                                    <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+                                        <polygon points='11 5 6 9 2 9 2 15 6 15 11 19 11 5' />
+                                        <line x1='23' y1='9' x2='17' y2='15' />
+                                        <line x1='17' y1='9' x2='23' y2='15' />
+                                    </svg>
+                                ) : (
+                                    <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+                                        <polygon points='11 5 6 9 2 9 2 15 6 15 11 19 11 5' />
+                                        <path d='M15.54 8.46a5 5 0 0 1 0 7.07' />
+                                        <path d='M19.07 4.93a10 10 0 0 1 0 14.14' />
+                                    </svg>
+                                )}
+                                <span>{audioState === "playing" ? "Playing…" : audioState === "error" ? "No audio" : "Play"}</span>
+                            </button>
+                        )}
+                        <button
+                            className='flex-1 py-2 rounded-xl text-sm text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all border border-gray-200'
+                            onClick={onSkip}
+                        >
+                            Skip for now
+                        </button>
+                    </div>
                 </div>
             )}
 
