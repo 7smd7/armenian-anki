@@ -6,7 +6,8 @@
 // 2. Review card due now (oldest-due first)
 // 3. New card (only if openLearningTodayCount < ACTIVE_LEARNING_LIMIT)
 // 4. Learning card due later today (early review — never block the user)
-// 5. Session complete
+// 5. Practice ahead: any studied, non-mastered card (never-ending queue)
+// 6. Session complete (only when every card is mastered)
 //
 // Learning cards waiting on a minute-level step are shown early rather than ending the session.
 // No wait states — the user is never blocked.
@@ -182,7 +183,23 @@ export async function GET(request: NextRequest) {
             return buildCardResponse(learningLater, directionParam, totalCards, remaining);
         }
 
-        // ── Priority 5: session complete ──
+        // ── Priority 5: practice ahead (any studied, non-mastered card) ──
+        // Restores the never-ending queue for small decks. updatedAt changes on
+        // every review, so ordering by it rotates through the whole deck.
+        const practiceAhead = await prisma.userCardState.findFirst({
+            where: {
+                ...COMMON,
+                lastReviewedAt: { not: null },
+            },
+            orderBy: { updatedAt: "asc" },
+            include: { card: true },
+        });
+
+        if (practiceAhead) {
+            return buildCardResponse(practiceAhead, directionParam, totalCards, remaining);
+        }
+
+        // ── Priority 6: session complete ──
         return NextResponse.json({
             card: null,
             remaining: 0,

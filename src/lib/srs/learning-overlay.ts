@@ -222,6 +222,28 @@ export function applyReview(
         };
     }
 
-    // 'future' cards should not be reviewable
-    throw new Error(`Card is not actionable (bucket: ${bucket})`);
+    // ════════════════════════════════════════════
+    // CASE C: Practice ahead (card not due yet)
+    // ════════════════════════════════════════════
+    // Served only when nothing else is left, so the session never ends.
+    if (grade <= 1) {
+        // Forgot it early → back into today's learning loop
+        return {
+            easeFactor: newEase,
+            interval: cardState.interval,
+            repetitions: cardState.repetitions,
+            lapses: newLapses,
+            dueAt: addMinutes(now, 1),
+            lastReviewedAt: now,
+        };
+    }
+    // Remembered → keep the real schedule untouched (no interval inflation)
+    return {
+        easeFactor: cardState.easeFactor,
+        interval: cardState.interval,
+        repetitions: cardState.repetitions,
+        lapses: cardState.lapses,
+        dueAt: cardState.dueAt,
+        lastReviewedAt: cardState.lastReviewedAt!,
+    };
 }
