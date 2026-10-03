@@ -5,9 +5,10 @@
 // 1. Learning card due now (same-day reinforcement)
 // 2. Review card due now (oldest-due first)
 // 3. New card (only if openLearningTodayCount < ACTIVE_LEARNING_LIMIT)
-// 4. Session complete
+// 4. Learning card due later today (early review — never block the user)
+// 5. Session complete
 //
-// Cards scheduled later today are simply ignored until they become due.
+// Learning cards waiting on a minute-level step are shown early rather than ending the session.
 // No wait states — the user is never blocked.
 
 import { NextRequest, NextResponse } from "next/server";
@@ -164,7 +165,24 @@ export async function GET(request: NextRequest) {
             }
         }
 
-        // ── Priority 4: session complete ──
+        // ── Priority 4: learning card due later today (early review) ──
+        // Keeps the loop going while learning steps are still counting down.
+        // Least-recently-reviewed first so the same card isn't shown back to back.
+        const learningLater = await prisma.userCardState.findFirst({
+            where: {
+                ...COMMON,
+                lastReviewedAt: { gte: startOfToday },
+                dueAt: { gt: now, lt: startOfTomorrow },
+            },
+            orderBy: { lastReviewedAt: "asc" },
+            include: { card: true },
+        });
+
+        if (learningLater) {
+            return buildCardResponse(learningLater, directionParam, totalCards, remaining);
+        }
+
+        // ── Priority 5: session complete ──
         return NextResponse.json({
             card: null,
             remaining: 0,
