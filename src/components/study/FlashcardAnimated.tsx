@@ -13,6 +13,67 @@ const gifSessionCache = new Map<string, string[]>();
 // Words whose TTS request failed — persists for the browser session.
 const noAudioCache = new Set<string>();
 
+// ── Shared TTS player ──
+// One <audio> element for the whole session: iOS only allows programmatic
+// playback (auto-read) on an element that was first played from a user tap.
+const AUTO_READ_KEY = "armenian_anki_auto_read";
+const SILENT_WAV =
+    "data:audio/wav;base64,UklGRnQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YVAAAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==";
+let sharedAudio: HTMLAudioElement | null = null;
+let audioUnlocked = false;
+let stopCurrentAudio: (() => void) | null = null;
+
+function getSharedAudio(): HTMLAudioElement {
+    if (!sharedAudio) sharedAudio = new Audio();
+    return sharedAudio;
+}
+
+// Call from a tap handler so later auto-read is allowed on iOS
+function unlockAudio() {
+    if (audioUnlocked) return;
+    const audio = getSharedAudio();
+    audio.src = SILENT_WAV;
+    audio.play().then(() => (audioUnlocked = true)).catch(() => {});
+}
+
+type PlayResult = "ended" | "error" | "blocked";
+
+function playTts(text: string, onDone: (result: PlayResult) => void) {
+    stopCurrentAudio?.();
+    const audio = getSharedAudio();
+    let settled = false;
+    const finish = (result: PlayResult) => {
+        if (settled) return;
+        settled = true;
+        audio.onended = null;
+        audio.onerror = null;
+        if (stopCurrentAudio === stop) stopCurrentAudio = null;
+        onDone(result);
+    };
+    const stop = () => {
+        audio.pause();
+        finish("ended");
+    };
+    stopCurrentAudio = stop;
+    audio.onended = () => finish("ended");
+    audio.onerror = () => finish("error");
+    audio.src = `/api/tts?text=${encodeURIComponent(text)}`;
+    audio
+        .play()
+        .then(() => (audioUnlocked = true))
+        .catch((err) =>
+            finish(err?.name === "NotAllowedError" ? "blocked" : "error"),
+        );
+}
+
+function readAutoRead(): boolean {
+    try {
+        return localStorage.getItem(AUTO_READ_KEY) === "1";
+    } catch {
+        return false;
+    }
+}
+
 interface FlashcardAnimatedProps {
     card: CardData;
     state: CardStateData;
@@ -45,7 +106,10 @@ export function FlashcardAnimated({
     const [audioState, setAudioState] = useState<"idle" | "playing" | "error">(
         () => noAudioCache.has(card.armenianScript) ? "error" : "idle"
     );
-    const audioRef = useRef<HTMLAudioElement | null>(null);
+    const [sentenceState, setSentenceState] = useState<"idle" | "playing" | "error">("idle");
+    const [autoRead, setAutoRead] = useState(readAutoRead);
+    const autoReadRef = useRef(autoRead);
+    const autoPlayedRef = useRef(new Set<string>());
 
     // Reset card when content changes (render-time state adjustment)
     const cardKey = `${card.armenianScript}|${card.englishMeaning}`;
@@ -54,6 +118,7 @@ export function FlashcardAnimated({
         setFlipped(false);
         setGifError(null);
         setAudioState(noAudioCache.has(card.armenianScript) ? "error" : "idle");
+        setSentenceState("idle");
         // Immediately serve cached GIFs for this card, or clear stale ones from the previous card
         const newQuery = (card.englishMeaning || card.armenianScript || "").trim();
         setGifUrls(gifSessionCache.has(newQuery) ? (gifSessionCache.get(newQuery) ?? null) : null);
@@ -118,29 +183,85 @@ export function FlashcardAnimated({
         };
     }, [flipped, gifQuery, giphyKey]);
 
-    const playArmenianAudio = useCallback((e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (audioRef.current) {
-            audioRef.current.pause();
-            audioRef.current = null;
-        }
-        const url = `/api/tts?text=${encodeURIComponent(card.armenianScript)}`;
-        const audio = new Audio(url);
-        audioRef.current = audio;
+    const playWord = useCallback(() => {
         setAudioState("playing");
-        audio.play().catch(() => {
-            noAudioCache.add(card.armenianScript);
-            setAudioState("error");
+        playTts(card.armenianScript, (result) => {
+            if (result === "error") noAudioCache.add(card.armenianScript);
+            setAudioState(result === "error" ? "error" : "idle");
         });
-        audio.onended = () => setAudioState("idle");
-        audio.onerror = () => {
-            noAudioCache.add(card.armenianScript);
-            setAudioState("error");
-        };
     }, [card.armenianScript]);
+
+    const playArmenianAudio = useCallback(
+        (e: React.MouseEvent) => {
+            e.stopPropagation();
+            playWord();
+        },
+        [playWord],
+    );
+
+    const playSentence = useCallback(
+        (e: React.MouseEvent) => {
+            e.stopPropagation(); // don't flip the card
+            if (!card.exampleSentence) return;
+            setSentenceState("playing");
+            playTts(card.exampleSentence, (result) =>
+                setSentenceState(result === "error" ? "error" : "idle"),
+            );
+        },
+        [card.exampleSentence],
+    );
+
+    // Armenian is on screen: front in forward mode, back in reverse mode
+    const armenianVisible = flipped === reverse;
+
+    // Stop audio when moving to another card
+    useEffect(() => {
+        const played = autoPlayedRef.current;
+        return () => {
+            stopCurrentAudio?.();
+            played.clear();
+        };
+    }, [cardKey]);
+
+    // Auto-read the word once per card side when Armenian appears
+    useEffect(() => {
+        if (!autoReadRef.current || !armenianVisible) return;
+        const key = `${cardKey}|${flipped}`;
+        if (autoPlayedRef.current.has(key)) return;
+        autoPlayedRef.current.add(key);
+        playWord();
+    }, [cardKey, flipped, armenianVisible, playWord]);
+
+    const toggleAutoRead = useCallback(() => {
+        const next = !autoReadRef.current;
+        autoReadRef.current = next;
+        setAutoRead(next);
+        try {
+            localStorage.setItem(AUTO_READ_KEY, next ? "1" : "0");
+        } catch {
+            // storage unavailable (private mode) — setting lasts this session only
+        }
+        if (next) {
+            // Play now (inside the tap) so iOS allows auto-read afterwards
+            if (armenianVisible) {
+                autoPlayedRef.current.add(`${cardKey}|${flipped}`);
+                playWord();
+            } else {
+                unlockAudio();
+            }
+        } else {
+            stopCurrentAudio?.();
+        }
+    }, [armenianVisible, cardKey, flipped, playWord]);
+
+    const reveal = useCallback(() => {
+        if (autoReadRef.current) unlockAudio();
+        setFlipped(true);
+    }, []);
 
     const handleGrade = useCallback(
         (grade: number) => {
+            if (autoReadRef.current) unlockAudio();
             onReview(grade, Date.now() - startTimeRef.current);
         },
         [onReview],
@@ -212,6 +333,34 @@ export function FlashcardAnimated({
                         </svg>
                     )}
                 </button>
+                {/* Speaker icon — auto-read Armenian aloud (off by default, remembered per device) */}
+                <button
+                    onClick={toggleAutoRead}
+                    title={autoRead ? "Auto-read: on" : "Auto-read: off"}
+                    className={`p-1.5 rounded-full border transition-all ${
+                        autoRead
+                            ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                            : "bg-white text-gray-400 border-gray-200 hover:border-indigo-300 hover:text-indigo-500"
+                    }`}
+                    aria-label={autoRead ? "Turn off auto-read" : "Turn on auto-read"}
+                    aria-pressed={autoRead}
+                >
+                    {autoRead ? (
+                        /* speaker on */
+                        <svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+                            <polygon points='11 5 6 9 2 9 2 15 6 15 11 19 11 5' />
+                            <path d='M15.54 8.46a5 5 0 0 1 0 7.07' />
+                            <path d='M19.07 4.93a10 10 0 0 1 0 14.14' />
+                        </svg>
+                    ) : (
+                        /* speaker muted */
+                        <svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+                            <polygon points='11 5 6 9 2 9 2 15 6 15 11 19 11 5' />
+                            <line x1='23' y1='9' x2='17' y2='15' />
+                            <line x1='17' y1='9' x2='23' y2='15' />
+                        </svg>
+                    )}
+                </button>
             </div>
 
             {/* CARD — no fixed height, text wraps naturally */}
@@ -219,13 +368,13 @@ export function FlashcardAnimated({
                 /* ── FRONT ── */
                 <div
                     className='bg-white border-2 border-indigo-100 shadow-lg rounded-2xl px-6 py-10 flex flex-col items-center gap-3 cursor-pointer select-none transition-shadow hover:shadow-xl active:scale-[0.99]'
-                    onClick={() => setFlipped(true)}
+                    onClick={reveal}
                     role='button'
                     tabIndex={0}
                     onKeyDown={(e) => {
                         if (e.key === " " || e.key === "Enter") {
                             e.preventDefault();
-                            setFlipped(true);
+                            reveal();
                         }
                     }}
                     aria-label='Tap to reveal answer'
@@ -319,8 +468,27 @@ export function FlashcardAnimated({
                     {/* Example — always shown when available */}
                     {card.exampleSentence && (
                         <div className='w-full bg-white/80 rounded-xl px-4 py-3 border border-white/90 mt-1'>
-                            <div className='text-xs text-gray-400 font-semibold uppercase tracking-wider mb-1'>
-                                Example
+                            <div className='flex items-center justify-between mb-1'>
+                                <div className='text-xs text-gray-400 font-semibold uppercase tracking-wider'>
+                                    Example
+                                </div>
+                                <button
+                                    onClick={playSentence}
+                                    title={sentenceState === "error" ? "Audio unavailable" : "Read example aloud"}
+                                    aria-label='Read example aloud'
+                                    className={`w-7 h-7 -my-1 flex items-center justify-center rounded-full transition-all ${
+                                        sentenceState === "playing"
+                                            ? "bg-indigo-600 text-white"
+                                            : sentenceState === "error"
+                                            ? "text-gray-300"
+                                            : "text-indigo-400 hover:bg-indigo-100 hover:text-indigo-600"
+                                    }`}
+                                >
+                                    <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+                                        <polygon points='11 5 6 9 2 9 2 15 6 15 11 19 11 5' fill={sentenceState === "playing" ? "currentColor" : "none"} />
+                                        <path d='M15.54 8.46a5 5 0 0 1 0 7.07' />
+                                    </svg>
+                                </button>
                             </div>
                             <div className='font-armenian text-gray-800 text-sm leading-relaxed wrap-break-word'>
                                 {card.exampleSentence}
@@ -340,7 +508,7 @@ export function FlashcardAnimated({
                 <div className='flex gap-2'>
                     <button
                         className='flex-1 py-4 rounded-xl font-semibold text-white text-lg transition-all active:scale-[0.98] bg-accent'
-                        onClick={() => setFlipped(true)}
+                        onClick={reveal}
                     >
                         Reveal Answer
                     </button>
