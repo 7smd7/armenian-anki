@@ -29,6 +29,8 @@ model User {
   decks         Deck[]
   cardStates    UserCardState[]
   reviewLogs    ReviewLog[]
+  grammarStates GrammarCardState[]
+  grammarLogs   GrammarReviewLog[]
 
   @@index([email])
 }
@@ -209,4 +211,49 @@ model ImportJob {
   deck Deck @relation(fields: [deckId], references: [id], onDelete: Cascade)
 
   @@index([deckId])
+}
+
+// ============================================
+// GRAMMAR PRACTICE
+// ============================================
+// Grammar cards are generated in code (src/lib/grammar/cards.ts), so they are
+// identified by a key instead of a Card row: "v:<infinitive>:<tense>" for a
+// verb in one tense, "t:<item id>" for a topic question (pronouns, etc.).
+
+model GrammarCardState {
+  id             String    @id @default(cuid())
+  userId         String
+  cardKey        String
+
+  // Same scheduling fields as UserCardState (see src/lib/srs/learning-overlay.ts)
+  easeFactor     Float     @default(2.5)
+  interval       Int       @default(0)
+  repetitions    Int       @default(0)
+  lapses         Int       @default(0)
+  dueAt          DateTime  @default(now())
+  lastReviewedAt DateTime?
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, cardKey])
+  @@index([userId, dueAt])
+}
+
+model GrammarReviewLog {
+  id              String   @id @default(cuid())
+  userId          String
+  cardKey         String
+  grade           Int      // 0=again, 1=hard, 2=good, 3=easy
+  correct         Boolean  // was the typed / picked answer right?
+  responseTime    Int?     // milliseconds
+  scheduledBefore DateTime
+  scheduledAfter  DateTime
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }

@@ -34,6 +34,7 @@ Try it instantly with the built-in sample deck (no sign-up required), or sign in
 - **Google OAuth** for persistent personal progress
 - **CSV import/export** for real-world vocab workflows
 - **Topic/Tag filtering** for focused study sessions
+- **Grammar trainer** (`/grammar`): lessons, adaptive tense drills, a conjugator for every verb, plus pronouns, place words and if-sentences
 - **Mobile-friendly UI** built with Tailwind CSS
 
 ## 🖼️ Screenshots
@@ -158,6 +159,7 @@ Key paths:
 - `src/app` — app router pages + API routes
 - `src/components` — UI components (study, decks, modals)
 - `src/lib/srs` — FSRS and mastery logic
+- `src/lib/grammar` — rule-based conjugation engine, verb list and grammar quizzes (check with `npx jiti scripts/check-grammar.ts`)
 - `prisma/schema.prisma` — database schema
 - `docs/` — deployment + API docs
 

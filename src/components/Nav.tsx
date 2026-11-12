@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { DecksModal } from "@/components/modals/DecksModal";
 import { ImportModal } from "@/components/modals/ImportModal";
 
@@ -13,6 +14,7 @@ interface NavProps {
 export function Nav({ onOpenDecks }: NavProps) {
     const { data: session, status } = useSession();
     const isLoading = status === "loading";
+    const pathname = usePathname();
 
     // Self-managed modal state used on any page that doesn't supply onOpenDecks
     const [ownDecksOpen, setOwnDecksOpen] = useState(false);
@@ -37,6 +39,16 @@ export function Nav({ onOpenDecks }: NavProps) {
 
                 {/* Right side */}
                 <div className='flex items-center gap-2'>
+                    <Link
+                        href='/grammar'
+                        className={`px-3 py-1.5 text-sm font-semibold rounded-lg transition-colors ${
+                            pathname?.startsWith("/grammar")
+                                ? "bg-indigo-50 text-indigo-700"
+                                : "text-gray-600 hover:bg-gray-100"
+                        }`}
+                    >
+                        Grammar
+                    </Link>
                     {isLoading ? (
                         <div className='w-8 h-8 rounded-full bg-gray-100 animate-pulse' />
                     ) : session ? (
