@@ -35,7 +35,8 @@ body {
 
 /* Armenian script font */
 .font-armenian {
-  font-family: 'Noto Sans Armenian', serif;
+  /* Latin letters, digits and symbols fall back to the UI font, not a serif */
+  font-family: 'Noto Sans Armenian', var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
 
 /* 3D card flip */

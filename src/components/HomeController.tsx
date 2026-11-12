@@ -7,6 +7,7 @@ import { GuestStudySession } from "@/components/study/GuestStudySession";
 import { StudySession } from "@/components/study/StudySession";
 import { DecksModal } from "@/components/modals/DecksModal";
 import { ImportModal } from "@/components/modals/ImportModal";
+import { GrammarChip } from "@/components/GrammarChip";
 import { signIn } from "next-auth/react";
 import type { Deck } from "@/types/deck";
 
@@ -94,6 +95,9 @@ export function HomeController() {
                         ) : decks.length === 0 ? (
                             // ── No decks yet ── featured starter + options
                             <div className='flex flex-col gap-4 pt-4'>
+                                <div className='flex'>
+                                    <GrammarChip />
+                                </div>
                                 {/* Featured starter deck */}
                                 <div className='rounded-2xl border-2 border-indigo-200 bg-linear-to-br from-indigo-50 to-purple-50 p-5 flex flex-col gap-3'>
                                     <div className='flex items-start justify-between gap-2'>
@@ -150,29 +154,28 @@ export function HomeController() {
                             </div>
                         ) : (
                             <>
-                                {/* Deck selector */}
-                                {decks.length > 1 && (
-                                    <div className='flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 no-scrollbar'>
-                                        {decks.map((deck) => (
-                                            <button
-                                                key={deck.id}
-                                                onClick={() =>
-                                                    setSelectedDeckId(deck.id)
-                                                }
-                                                className={`shrink-0 px-4 py-2 rounded-full text-sm font-semibold border-2 transition-all ${
-                                                    selectedDeckId === deck.id
-                                                        ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                                                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
-                                                }`}
-                                            >
-                                                {deck.title}
-                                                <span className='ml-1.5 text-xs opacity-60'>
-                                                    {deck.cardCount}
-                                                </span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
+                                {/* Deck selector + Grammar */}
+                                <div className='flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 no-scrollbar'>
+                                    {decks.map((deck) => (
+                                        <button
+                                            key={deck.id}
+                                            onClick={() =>
+                                                setSelectedDeckId(deck.id)
+                                            }
+                                            className={`shrink-0 px-4 py-2 rounded-full text-sm font-semibold border-2 transition-all ${
+                                                selectedDeckId === deck.id
+                                                    ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                                                    : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+                                            }`}
+                                        >
+                                            {deck.title}
+                                            <span className='ml-1.5 text-xs opacity-60'>
+                                                {deck.cardCount}
+                                            </span>
+                                        </button>
+                                    ))}
+                                    <GrammarChip />
+                                </div>
 
                                 {/* Study session */}
                                 {selectedDeckId && (
@@ -188,6 +191,12 @@ export function HomeController() {
                 ) : (
                     // ─── GUEST VIEW ───────────────────────────────────────────
                     <div className='flex flex-col gap-5'>
+                        <div className='flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 no-scrollbar'>
+                            <span className='shrink-0 px-4 py-2 rounded-full text-sm font-semibold border-2 border-indigo-500 bg-indigo-50 text-indigo-700'>
+                                Sample deck
+                            </span>
+                            <GrammarChip />
+                        </div>
                         {/* Hero headline — compact */}
                         <div className='text-center pt-2 pb-1'>
                             <h1 className='text-2xl font-bold text-gray-900 leading-tight'>

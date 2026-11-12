@@ -2,6 +2,7 @@
 
 import { useState, useSyncExternalStore } from "react";
 import { Nav } from "@/components/Nav";
+import { FlashcardsChip, GrammarChip } from "@/components/GrammarChip";
 import type { DrillSettings } from "@/lib/grammar/drill";
 import { Lessons } from "./Lessons";
 import { Practice } from "./Practice";
@@ -42,6 +43,10 @@ export function GrammarHub() {
         <div className='min-h-dvh flex flex-col bg-background'>
             <Nav />
             <main className='flex-1 w-full max-w-2xl mx-auto px-4 py-5 flex flex-col gap-4'>
+                <div className='flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 no-scrollbar'>
+                    <FlashcardsChip />
+                    <GrammarChip active />
+                </div>
                 <div>
                     <h1 className='text-2xl font-bold text-gray-900'>
                         Grammar{" "}
