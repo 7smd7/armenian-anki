@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { SessionProviderWrapper } from "@/components/SessionProviderWrapper";
 import { AlertProvider } from "@/components/modals/AlertProvider";
+import { THEME_INIT_SCRIPT } from "@/components/ThemeToggle";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({
@@ -81,7 +82,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-    themeColor: "#6c63ff",
+    themeColor: [
+        { media: "(prefers-color-scheme: light)", color: "#6c63ff" },
+        { media: "(prefers-color-scheme: dark)", color: "#0f0f19" },
+    ],
     width: "device-width",
     initialScale: 1,
     maximumScale: 5,
@@ -93,7 +97,11 @@ export default function RootLayout({
     children: React.ReactNode;
 }) {
     return (
-        <html lang='en'>
+        // suppressHydrationWarning: the theme script sets the class before React loads
+        <html lang='en' suppressHydrationWarning>
+            <head>
+                <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+            </head>
             <body
                 className={`${geistSans.variable} ${geistMono.variable} antialiased`}
             >

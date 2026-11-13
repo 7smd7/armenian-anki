@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
 import Link from "next/link";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { DecksModal } from "@/components/modals/DecksModal";
 import { ImportModal } from "@/components/modals/ImportModal";
 
@@ -37,6 +38,7 @@ export function Nav({ onOpenDecks }: NavProps) {
 
                 {/* Right side */}
                 <div className='flex items-center gap-2'>
+                    <ThemeToggle />
                     {isLoading ? (
                         <div className='w-8 h-8 rounded-full bg-gray-100 animate-pulse' />
                     ) : session ? (
@@ -59,7 +61,7 @@ export function Nav({ onOpenDecks }: NavProps) {
                             </button>
                             <button
                                 onClick={() => signOut({ callbackUrl: "/" })}
-                                className='flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg whitespace-nowrap text-gray-600 hover:bg-gray-100 transition-colors border border-gray-200'
+                                className='flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-sm font-medium rounded-lg whitespace-nowrap text-gray-600 hover:bg-gray-100 transition-colors border border-gray-200'
                                 title={`Sign out (${session.user?.name ?? session.user?.email})`}
                             >
                                 {session.user?.image ? (
@@ -85,7 +87,9 @@ export function Nav({ onOpenDecks }: NavProps) {
                                         <path d='M4 20c0-4 3.6-7 8-7s8 3 8 7' />
                                     </svg>
                                 )}
-                                Sign out
+                                {/* Icon only on phones so the header fits on one line */}
+                                <span className='hidden sm:inline'>Sign out</span>
+                                <span className='sr-only sm:hidden'>Sign out</span>
                             </button>
                         </>
                     ) : (

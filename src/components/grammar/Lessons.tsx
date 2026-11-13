@@ -192,15 +192,15 @@ const TIMELINE: { tense: TenseId; glyph: Glyph }[] = [
 ];
 
 function TimelineGlyph({ glyph }: { glyph: Glyph }) {
-    const c = "#6c63ff";
+    const c = "currentColor";
     const wave = (x1: number, x2: number) => {
         let d = `M${x1} 14`;
         for (let x = x1; x < x2; x += 8) d += ` q2 -6 4 0 q2 6 4 0`;
         return <path d={d} fill='none' stroke={c} strokeWidth='2' />;
     };
     return (
-        <svg viewBox='0 0 200 28' className='block w-full max-w-sm mx-auto' aria-hidden>
-            <line x1='4' y1='14' x2='196' y2='14' stroke='#e2e0f0' strokeWidth='2' />
+        <svg viewBox='0 0 200 28' className='block w-full max-w-sm mx-auto text-accent' aria-hidden>
+            <line x1='4' y1='14' x2='196' y2='14' style={{ stroke: "var(--border)" }} strokeWidth='2' />
             <line x1='100' y1='3' x2='100' y2='25' stroke='#f59e0b' strokeWidth='2' />
             {glyph === "dot" && <circle cx='45' cy='14' r='5' fill={c} />}
             {glyph === "wave" && wave(24, 72)}
@@ -215,7 +215,7 @@ function TimelineGlyph({ glyph }: { glyph: Glyph }) {
                 <>
                     <circle cx='30' cy='14' r='5' fill={c} />
                     <line x1='35' y1='14' x2='62' y2='14' stroke={c} strokeWidth='2' />
-                    <circle cx='68' cy='14' r='5' fill='white' stroke={c} strokeWidth='2' />
+                    <circle cx='68' cy='14' r='5' style={{ fill: "var(--card-bg)" }} stroke={c} strokeWidth='2' />
                 </>
             )}
             {glyph === "now" && (
@@ -235,7 +235,7 @@ function TimelineGlyph({ glyph }: { glyph: Glyph }) {
             {glyph === "maybe" && (
                 <>
                     <line x1='100' y1='14' x2='150' y2='14' stroke={c} strokeWidth='2' strokeDasharray='4 4' />
-                    <circle cx='156' cy='14' r='5' fill='white' stroke={c} strokeWidth='2' />
+                    <circle cx='156' cy='14' r='5' style={{ fill: "var(--card-bg)" }} stroke={c} strokeWidth='2' />
                 </>
             )}
             {glyph === "oldPlan" && (
